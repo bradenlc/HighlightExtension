@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+    <link href='https://fonts.googleapis.com/css?family=Oxygen Mono' rel='stylesheet'>
+    <style>
+      .col-contain {
+        overflow: hidden;
+      }
+      .width-100 {
+        width: 100%;
+      }
+      .num-input {
+        width: 35px;
+        text-align: right;
+      }
+      .color-input {
+        width: 70px;
+        font-family: Oxygen Mono !important;
+      }
+      #styleGuide div div {
+        padding-bottom: 4px;
+      }
+      #styleGuide div div button {
+        min-width: 25px;
+        height: 25px;
+        line-height: 25px;
+        margin-left: 2px;
+      }
+      .greyedOut {
+        background-color: rgb(235, 235, 228) !important;
+        background: rgb(235, 235, 228) !important;
+        color: rgb(84, 84, 84) !important;
+      }
+      #unitContainer {
+        padding-top: 10px;
+        margin-top: 0px;
+      }
+      #entryContainer {
+        padding-bottom: 0px;
+      }
+      #buttonHolder {
+        padding-top: 11px;
+      }
+      #buttonHolder div button {
+        min-width: 100px;
+      }
+      #buttonHolder div .red {
+        text-transform: capitalize;
+      }
+    </style>
+  </head>
+  
+  
+  <body><div class="sidebar">
+      <div id="styleGuide" class="block col-contain">
+        
+        <div>
+          <b>Ranges</b><span>&emsp;&emsp;&emsp;&ensp;</span><b>Color Code</b>
+          <div id="entryContainer">
+          </div>
+        </div>
+      
+      </div>
+    
+      <div id="unitContainer" class ="block">
+        <b>Length Units</b>
+        <div>
+          <input type="radio" name="unit" id="radio-unit-words" value="Words" checked="checked">
+          <label for="radio-unit-words">Words</label>
+        </div>
+        <div>
+          <input type="radio" name="unit" id="radio-unit-characters" value="Characters">
+          <label for="radio-unit-characters">Letters</label>
+        </div>
+      </div>
+      
+      <div id="buttonHolder">
+    
+        <div class="block">
+          <button class="blue" id="buttonTest">Highlight Text</button>
+          <button id="undo">Undo Highlight</button>
+        </div>
+      
+        <div class="block">
+          <button id="update">Update Default</button>
+          <button id="reset">Reset Settings</button>
+        </div>
+        
+        <div class="block">
+          <button class="red" id="factorySettings">Restore Original Settings</button>
+        </div>
+      
+      </div>
+    
+    </div>
+
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <script>
+    var entryMap = new Map();
+    var listOfEntries = []
+    
+    $(function() {
+      $('#buttonTest').click(applyHighlight);
+      $("#undo").click(undoHighlight);
+      $("#update").click(updateSettings);
+      $("#factorySettings").click(factorySettings);
+      $('#reset').click(resetSettings);
+      getSettings();
+    });
+      
+      function getSettings() {
+        google.script.run.withSuccessHandler(settingsToDefault).withFailureHandler(setUserSettings).getUserSettings();
+      }
+      
+      function settingsToDefault(settings) {
+        var containerDiv = $('#entryContainer');
+        for(i=0;i<settings["ColorBoundaries"].length;i++) {
+          initEntry(i,settings["ColorBoundaries"][i],settings["ColorCodes"][i],containerDiv);
+        };
+      }
+      
+      function resetSettings() {
+        for(i=listOfEntries.length-1;i>=0;i--) {
+          listOfEntries[i].remove();
+          entryMap.delete(listOfEntries[i]);    
+          listOfEntries.pop();
+        };
+        console.log("Deletion Loop Ended");
+        console.log(listOfEntries);
+        getSettings();
+      }
+      
+      function setUserSettings() {
+        google.script.run.setUserSettings();
+        getSettings();
+      }
+      
+      function initEntry(i, lowBound, colorCode, containerDiv) {
+        const lowerString = "lower-" + i;
+        const upperString = "upper-" + i;
+        const colorString = "color-" + i;
+        
+        if(i>=1){
+        entryMap.get(listOfEntries[i-1])[1].prop("disabled", false);
+        entryMap.get(listOfEntries[i-1])[1].attr("class", "num-input upper")
+        entryMap.get(listOfEntries[i-1])[1].val(lowBound-1);
+        };
+        
+        const lowerStringInput = $('<input type="text" name="range" id="' + lowerString + '" value="' + lowBound + '" class="num-input greyedOut" disabled>');
+        const upperStringInput = $('<input type="text" name="range" id="' + upperString + '" value="&#x221e;" class="num-input greyedOut" autocomplete="off" onchange="adjustMargin()" disabled>');
+        const colorStringInput = $('<input type="text" name="color" id="' + colorString + '" value="' + colorCode + '" class="color-input">');
+        
+        const completeEntry = $('<div>').append(lowerStringInput)
+                                        .append($('<label> - </label>'))
+                                        .append(upperStringInput)
+                                        .append($('<span>&emsp;</span>'))
+                                        .append(colorStringInput)
+                                        .append($('<span>&ensp;</span>' +
+                                        '<button onclick="newEntry(this.parentNode)">+</button>' +
+                                        '<button class="red" onclick="closeEntry(this.parentNode)">&#215;</button>' +
+                                        '</div>'));
+        
+        var domObject = completeEntry.appendTo(containerDiv)[0];
+        
+        entryMap.set(domObject, [lowerStringInput,upperStringInput,colorStringInput]);
+        listOfEntries.push(domObject);
+      };
+
+      function applyHighlight() {
+        var ColorBoundaries = [];
+        var ColorCodes = [];
+        var Unit = $('input[name=unit]:checked').val()
+        for(var i=0;i<listOfEntries.length;i++){
+          var e = entryMap.get(listOfEntries[i]);
+          ColorBoundaries.push(parseInt(e[0].val(),10));
+          var matchedCode = e[2].val().match(/^#[0-9a-f]{6}/i);
+          if( matchedCode == null) {
+            ColorCodes.push("#FFFFFF");
+          } else {
+            ColorCodes.push(matchedCode[0]);
+          };
+        };
+        
+        var settings = {
+          "ColorBoundaries" : ColorBoundaries,
+          "ColorCodes"      : ColorCodes,
+          "Unit"            : Unit,
+        };
+        
+        console.log(settings);
+        
+        google.script.run.highlightText(settings);
+      }
+      
+      function undoHighlight() {
+        console.log("UndoCalled");
+        google.script.run.removeHighlight();
+      }
+      
+      function adjustMargin() {
+        for(i=0;i<listOfEntries.length-1;i++) {
+          var pastEntry = entryMap.get(listOfEntries[i]);
+          var currentEntry = entryMap.get(listOfEntries[i+1]);
+          currentEntry[0].val(parseInt(pastEntry[1].val(),10)+1);
+          if(parseInt(currentEntry[1].val(),10) < parseInt(currentEntry[0].val(),10)) {
+            currentEntry[1].val(parseInt(currentEntry[0].val(),10));
+          }
+        };
+        currentEntry[1].val(String.fromCharCode(parseInt("221e",16)));
+      }
+      
+      function closeEntry(callingElement) {
+        if(listOfEntries.length==2) {
+         return false;
+        };
+        var closedEntryReached = false;
+        for(var i=0;i<listOfEntries.length-1;i++) {
+          var currentEntry = entryMap.get(listOfEntries[i]);
+          var nextEntry = entryMap.get(listOfEntries[i+1]);
+          if (listOfEntries[i] == callingElement) {
+            currentEntry[1].val(nextEntry[1].val());
+            currentEntry[2].val(nextEntry[2].val());
+            closedEntryReached = true;
+          } else if (closedEntryReached) {
+            currentEntry[0].val(nextEntry[0].val());
+            currentEntry[1].val(nextEntry[1].val());
+            currentEntry[2].val(nextEntry[2].val());
+          };
+        };
+        listOfEntries[i].remove();
+        entryMap.delete(listOfEntries[i]);    
+        listOfEntries.pop();
+        entryMap.get(listOfEntries[listOfEntries.length-1])[1].attr("class", "num-input greyedOut");
+        entryMap.get(listOfEntries[listOfEntries.length-1])[1].val(String.fromCharCode(parseInt("221e",16)));
+      }
+      
+      function newEntry(callingElement) {
+        var callingEntryReached = false;
+        initEntry(listOfEntries.length,'','',$('#entryContainer'));
+        for(i=listOfEntries.length-1;!callingEntryReached;i--) {
+          var currentEntry = entryMap.get(listOfEntries[i]);
+          var prevEntry = entryMap.get(listOfEntries[i-1]);
+          if(listOfEntries[i-1] == callingElement) {
+            callingEntryReached = true;
+          } else {
+            currentEntry[0].val(prevEntry[0].val());
+            currentEntry[1].val(prevEntry[1].val());
+            currentEntry[2].val(prevEntry[2].val());
+          };
+        };
+        currentEntry[2].val("");
+        currentEntry[0].val(parseInt(prevEntry[1].val(),10)+1);
+        currentEntry[1].val(parseInt(prevEntry[1].val(),10)+1);
+        adjustMargin();
+      }
+      
+      function updateSettings() {
+      
+      }
+      
+      function factorySettings() {
+      
+      }
+      
+    </script>
+  </body>
+</html>
