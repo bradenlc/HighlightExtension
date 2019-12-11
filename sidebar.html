@@ -48,6 +48,9 @@
       }
       #buttonHolder div .red {
         text-transform: capitalize;
+        min-width: 217px;
+        float: center;
+        text-align: center;
       }
     </style>
   </head>
@@ -89,7 +92,7 @@
         </div>
         
         <div class="block">
-          <button class="red" id="factorySettings">Restore Original Settings</button>
+          <button class="red" id="factorySettings">-- Restore Original Settings --</button>
         </div>
       
       </div>
@@ -104,37 +107,73 @@
     $(function() {
       $('#buttonTest').click(applyHighlight);
       $("#undo").click(undoHighlight);
-      $("#update").click(updateSettings);
-      $("#factorySettings").click(factorySettings);
-      $('#reset').click(resetSettings);
-      getSettings();
+      $("#update").click(setUserSettingsToMenu);
+      $("#factorySettings").click(setUserSettingsToFactory);
+      $('#reset').click(resetSettingsToDefault);
+      populateSettingsList();
     });
       
-      function getSettings() {
-        google.script.run.withSuccessHandler(settingsToDefault).withFailureHandler(setUserSettings).getUserSettings();
+      function populateSettingsList() {
+        google.script.run.withSuccessHandler(setMenuSettings).withFailureHandler(setUserSettingsToFactory).getUserSettingsFromStorage();
       }
       
-      function settingsToDefault(settings) {
+      function setMenuSettings(settings) {
+        $('input:radio[name="unit"]').filter('[value=' + settings["Unit"] + ']').prop('checked', true);
+        console.log(settings["Unit"]);
+      
         var containerDiv = $('#entryContainer');
         for(i=0;i<settings["ColorBoundaries"].length;i++) {
           initEntry(i,settings["ColorBoundaries"][i],settings["ColorCodes"][i],containerDiv);
         };
       }
       
-      function resetSettings() {
+      function getMenuSettings() {
+        var ColorBoundaries = [];
+        var ColorCodes = [];
+        var Unit = $('input[name=unit]:checked').val()
+        for(var i=0;i<listOfEntries.length;i++){
+          var e = entryMap.get(listOfEntries[i]);
+          ColorBoundaries.push(parseInt(e[0].val(),10));
+          var matchedCode = e[2].val().match(/^#[0-9a-f]{6}/i);
+          if( matchedCode == null) {
+            ColorCodes.push("#FFFFFF");
+          } else {
+            ColorCodes.push(matchedCode[0]);
+          };
+        };
+        
+        return {
+          "ColorBoundaries" : ColorBoundaries,
+          "ColorCodes"      : ColorCodes,
+          "Unit"            : Unit,
+        };
+      }
+      
+      function setUserSettingsToFactory() {
+        google.script.run.setUserSettings({
+          "ColorBoundaries" : JSON.stringify([1, 3, 5, 7, 12]),
+          "ColorCodes"      : JSON.stringify(["#f7f7a8","#ffadf7","#ff969a","#c4f0a1","#c0e0f4"]),
+          "Unit"            : JSON.stringify("Words")
+        });
+        resetSettingsToDefault();
+      }
+      
+      function setUserSettingsToMenu() {
+        var settings = getMenuSettings();
+        google.script.run.setUserSettings({
+          "ColorBoundaries" : JSON.stringify(settings["ColorBoundaries"]),
+          "ColorCodes"      : JSON.stringify(settings["ColorCodes"]),
+          "Unit"            : JSON.stringify(settings["Unit"])
+        });
+      }
+      
+      function resetSettingsToDefault() {
         for(i=listOfEntries.length-1;i>=0;i--) {
           listOfEntries[i].remove();
           entryMap.delete(listOfEntries[i]);    
           listOfEntries.pop();
         };
-        console.log("Deletion Loop Ended");
-        console.log(listOfEntries);
-        getSettings();
-      }
-      
-      function setUserSettings() {
-        google.script.run.setUserSettings();
-        getSettings();
+        populateSettingsList();
       }
       
       function initEntry(i, lowBound, colorCode, containerDiv) {
@@ -167,31 +206,9 @@
         entryMap.set(domObject, [lowerStringInput,upperStringInput,colorStringInput]);
         listOfEntries.push(domObject);
       };
-
+      
       function applyHighlight() {
-        var ColorBoundaries = [];
-        var ColorCodes = [];
-        var Unit = $('input[name=unit]:checked').val()
-        for(var i=0;i<listOfEntries.length;i++){
-          var e = entryMap.get(listOfEntries[i]);
-          ColorBoundaries.push(parseInt(e[0].val(),10));
-          var matchedCode = e[2].val().match(/^#[0-9a-f]{6}/i);
-          if( matchedCode == null) {
-            ColorCodes.push("#FFFFFF");
-          } else {
-            ColorCodes.push(matchedCode[0]);
-          };
-        };
-        
-        var settings = {
-          "ColorBoundaries" : ColorBoundaries,
-          "ColorCodes"      : ColorCodes,
-          "Unit"            : Unit,
-        };
-        
-        console.log(settings);
-        
-        google.script.run.highlightText(settings);
+        google.script.run.highlightText(getMenuSettings());
       }
       
       function undoHighlight() {
@@ -254,14 +271,6 @@
         currentEntry[0].val(parseInt(prevEntry[1].val(),10)+1);
         currentEntry[1].val(parseInt(prevEntry[1].val(),10)+1);
         adjustMargin();
-      }
-      
-      function updateSettings() {
-      
-      }
-      
-      function factorySettings() {
-      
       }
       
     </script>
