@@ -7,7 +7,7 @@ function onOpen(e) {
 }
 
 function onInstall(e) {
-  setUserSettings();
+  setUserSettingsToDefault();
   onOpen(e);
 }
 
@@ -30,29 +30,30 @@ function binarySearchImplementation(boundaries,n) {
   return boundaries[0];
 }
 
-function getUserSettings() {
+function getUserSettingsFromStorage() {
   var userProperties = PropertiesService.getUserProperties();
-  setUserSettings();
+  Logger.log({
+    "ColorBoundaries" : JSON.parse(userProperties.getProperty("ColorBoundaries")),
+    "ColorCodes"      : JSON.parse(userProperties.getProperty("ColorCodes")),
+    "Unit"            : JSON.parse(userProperties.getProperty("Unit"))
+  });
   return {
     "ColorBoundaries" : JSON.parse(userProperties.getProperty("ColorBoundaries")),
     "ColorCodes"      : JSON.parse(userProperties.getProperty("ColorCodes")),
-    "Unit"            : userProperties.getProperty("Unit")
+    "Unit"            : JSON.parse(userProperties.getProperty("Unit"))
   };
 }
 
-function setUserSettings() {
+function setUserSettings(settings) {
+  Logger.log(settings);
   var userProperties = PropertiesService.getUserProperties();
-  userProperties.setProperties({
-    "ColorBoundaries" : JSON.stringify([1,8,12,16,21,26,31]),
-    "ColorCodes"      : JSON.stringify(["#c0e0f4","#c4f0a1","#eab2e5","#ff969a","#ffd7a5","#f9e9c2","#e4c0c2"]),
-    "Unit"            : "Words"
-  });
+  userProperties.setProperties(settings);
 }
 
 function getColorBySentence(sentence, settings, body) {
   var n =0;
   if(settings["Unit"]=="Words") {
-    var words = sentence.match(/\b(\w+)\b/g);
+    var words = sentence.match(/\b([\w'’]+)\b/g);
     if(!(words == null)) {
       n = words.length;
     }
@@ -76,11 +77,12 @@ function highlightText(settings) {
       sentences = paragraphs[i].getText().match(newRe);
     };
     if(!(sentences == null)){
-      var prevOffset = 0;
+      var prevOffset = 0;  
       for(j=0;j<sentences.length;j++){
         if(!(sentences[j] == null) && sentences[j].length) {
           var colorCode = getColorBySentence(sentences[j], settings, body);
-          paragraphs[i].editAsText().setBackgroundColor(prevOffset,prevOffset+sentences[j].length-1,colorCode);
+          if(prevOffset){paragraphs[i].editAsText().setBackgroundColor(prevOffset+1,prevOffset+sentences[j].length-1,colorCode);}
+          else{paragraphs[i].editAsText().setBackgroundColor(prevOffset,prevOffset+sentences[j].length-1,colorCode);}
           prevOffset=prevOffset+sentences[j].length;
         };
       };
@@ -96,4 +98,3 @@ function removeHighlight() {
   }
   Logger.log("Remove Highlight Completed");
 }
-
